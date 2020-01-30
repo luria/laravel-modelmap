@@ -1,0 +1,37 @@
+{
+    "name": "luria/laravel-modelmap",
+    "description": "Map of all models and relations",
+    "keywords": [
+        "luria",
+        "laravel-modelmap"
+    ],
+    "authors": [
+        {
+            "name": "Luis Uría",
+            "email": "luis.uria@smartinsurance.es"
+        }
+    ],
+    "homepage": "https://github.com/luria/laravel-modelmap",
+    "license": "MIT",
+    "minimum-stability": "dev",
+    "require": {
+        "php": "^7.1",
+        "doctrine/dbal": "~2.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Luria\\Modelmap\\": "src"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Luria\\Modelmap\\ModelmapServiceProvider"
+            ]
+        }
+    }
+
+}

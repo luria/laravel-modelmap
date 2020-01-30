@@ -1,2 +1,2 @@
 # modelmap
-maps models and relationships in a draw.io compatible xml file
+Maps models and their relationships into a draw.io compatible xml file
