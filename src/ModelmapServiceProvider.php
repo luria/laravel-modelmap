@@ -13,7 +13,7 @@ class ModelmapServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->app->make('Luria\Laravel-Modelmap\ModelmapController');
+        $this->app->make('Luria\Modelmap\ModelmapController');
     }
 
     /**
