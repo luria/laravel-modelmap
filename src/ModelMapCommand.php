@@ -35,16 +35,12 @@ class ModelMapCommand extends Command
     /** @var Graph */
     protected $graph;
 
-    /** @var GraphBuilder */
-    protected $graphBuilder;
-
-    public function __construct(ModelFinder $modelFinder, RelationFinder $relationFinder, GraphBuilder $graphBuilder)
+    public function __construct(ModelFinder $modelFinder, RelationFinder $relationFinder)
     {
         parent::__construct();
 
         $this->relationFinder = $relationFinder;
         $this->modelFinder = $modelFinder;
-        $this->graphBuilder = $graphBuilder;
     }
 
     public function handle()
