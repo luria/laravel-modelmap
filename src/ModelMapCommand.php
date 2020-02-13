@@ -5,7 +5,13 @@ namespace Luria\Modelmap;
 use Luria\Modelmap\Model as GraphModel;
 use Illuminate\Console\Command;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use App;
 use ReflectionClass;
+use ReflectionMethod;
 
 class ModelMapCommand extends Command
 {
@@ -43,7 +49,7 @@ class ModelMapCommand extends Command
     ';
 
     const MODEL_RELATION = '
-        <mxCell id="relation_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=blockThin;endFill=1;" edge="1" parent="1" source="source_id" target="target_id">
+        <mxCell id="relation_id" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;endArrow=blockThin;endFill=1;sourcePortConstraint=source_constraint;targetPortConstraint=target_constraint" edge="1" parent="1" source="source_id" target="target_id">
             <mxGeometry relative="1" as="geometry"/>
         </mxCell>
     ';
@@ -97,33 +103,89 @@ class ModelMapCommand extends Command
 
     public function handle()
     {
+        $database = DB::connection()->getConfig('database');
         // Graph
         $graph = '';
         // Graph Head
         $graphHead = self::DRAWIO_HEAD . PHP_EOL;
         // Graph Models
-        $graphModels = '';
+        $graphModels = '
+        <!--
+        -
+        -
+        -    MODELS
+        -
+        -
+        -->
+        ';
         // Graph Cells
-        $graphCells = '';
+        $graphCells = '
+        <!--
+        -
+        -
+        -    CELLS
+        -
+        -
+        -->
+        ';
+        // Graph ForeignKeys
+        $graphForeignKeys = '
+        <!--
+        -
+        -
+        -    FOREIGN KEys
+        -
+        -
+        -->
+        ';
+        // Graph RelationsForeignKeys Labels
+        $graphForeignKeysLabels = '
+        <!--
+        -
+        -
+        -    FOREIGN KEYS LABELS
+        -
+        -
+        -->
+        ';
         // Graph Relations
-        $graphRelations = '';
+        $graphRelations = '
+        <!--
+        -
+        -
+        -    RELATIONS
+        -
+        -
+        -->
+        ';
         // Graph Relation Labels
-        $graphLabels = '';
+        $graphLabels = '
+        <!--
+        -
+        -
+        -    RELATION LABELS
+        -
+        -
+        -->
+        ';
         // Graph Footer 
         $graphFooter = self::DRAWIO_FOOT . PHP_EOL;
 
         $models = $this->getModelsThatShouldBeInspected();
         $this->info("Found {$models->count()} models.");
-        $this->info("Inspecting model relations.");
+        $this->info("Inspecting model relations...");
+        sleep(1);
         
-        $this->getOutput()->progressStart($models->count());
-
         // Models
+        $this->info('Drawing graph...');
+        $this->info('Models');
+        $this->getOutput()->progressStart($models->count());
         $modelIteration = 0;
         foreach ($models as $model){
-            //sleep(1);
-
             $modelShortName = (new ReflectionClass($model))->getShortName();
+            $modelTable = (new ReflectionClass($model))->getDefaultProperties()['table'] ? : Str::plural(lcfirst($modelShortName), 2);
+            
+            // Model Text
             $graphModels .= 
                 preg_replace( '/model_id/', $modelShortName,
                 preg_replace( '/model_name/', $modelShortName, 
@@ -132,110 +194,151 @@ class ModelMapCommand extends Command
                 preg_replace( '/model_y/', self::MODEL_Y_GAP,
                 self::MODEL_HEADER 
             ))))) . PHP_EOL;
-            
             $modelIteration++;
+            $this->getOutput()->progressAdvance();
+        }
+        $this->getOutput()->progressFinish();
+        
+        // Cells & Foreign Keys
+        $this->info('Properties');
+        $this->getOutput()->progressStart($models->count());
+        
+        foreach ($models as $model){
+            $modelShortName = (new ReflectionClass($model))->getShortName();
+            $modelTable = (new ReflectionClass($model))->getDefaultProperties()['table'] ? : Str::plural(lcfirst($modelShortName), 2);
+            $columns = Schema::getColumnListing($modelTable);
+            
+            foreach($columns as $column){
+                //dump(Schema::getColumnType($modelTable, $column) );
+                $cellId = $modelShortName .'-'. $column;
+                // Cell Text
+                $graphCells .= 
+                    preg_replace( '/parent_id/',    $modelShortName,
+                    preg_replace( '/cell_id/',      $cellId,
+                    preg_replace( '/cell_name/',    $column,
+                    self::MODEL_CELL 
+                ))) . PHP_EOL;
+            }
+            $this->getOutput()->progressAdvance();
+        }
+        $this->getOutput()->progressFinish();
 
-            // Properties and Relations for this Model
+        // Foreign Keys
+        $this->info('Foreign Keys');
+        $this->getOutput()->progressStart($models->count());
+        $foreignKeys = collect(DB::select('select * from information_schema.referential_constraints where constraint_schema = ? ', [$database]));
+        //dump($foreignKeys);
+        foreach($foreignKeys as $foreignKey){
+            
+            $relationId = $foreignKey->CONSTRAINT_NAME;
+            $relationLabelId = $foreignKey->CONSTRAINT_NAME .'-label';
+            $relationType = 'FK';
+            $sourceId = '';
+            $targetId = '';
+            $sourceConstraint = '';
+            $targetConstraint = '';
+                        
+            // Relation Text
+            $graphForeignKeys .=
+                preg_replace( '/relation_id/', $relationId,
+                preg_replace( '/source_id/', $sourceId,
+                preg_replace( '/target_id/', $targetId,
+                preg_replace( '/source_constraint/', $sourceConstraint,
+                preg_replace( '/target_constraint/', $targetConstraint,
+                self::MODEL_RELATION
+            ))))) . PHP_EOL;
+            
+            // Relation Label Text
+            $graphForeignKeysLabels .=
+                preg_replace( '/relation_label_id/', $relationLabelId,
+                preg_replace( '/label_value/', $relationType,
+                preg_replace( '/parent_id/', $relationId,
+                preg_replace( '/source_constraint/', $sourceConstraint,
+                preg_replace( '/target_constraint/', $targetConstraint,
+                self::MODEL_RELATION_LABEL
+            ))))) . PHP_EOL;
+        }
+
+        // Relations 
+        $this->info('Relations');
+        $this->getOutput()->progressStart($models->count());
+        foreach ($models as $model){
+            $modelShortName = (new ReflectionClass($model))->getShortName();
             foreach($this->relationFinder->getModelRelations($model) as $relation){
-                dump($model, $relation);
+                //dump($modelShortName, $modelTable,  $relation);
                 
-                $relatedModel   = $relation->getName();
-                $relatedKey     = $relation->getForeignKey();
-
-                $cellName       = $relation->getLocalKey();
-                $cellId         = $modelShortName .'-'. $cellName;
-
-                $relationType   = $relation->getType();
-                $relationId     = $modelShortName .'-'. $relationType .'-'. $relatedModel;
-                $relationName   = $modelShortName .'-'. $relationType .'-'. $relatedModel .'-label';
+                $relatedModel       = $relation->getName();
+                $relationForeignKey = $relation->getForeignKey();
+                $relationLocalKey   = $relation->getLocalKey();
+                $relationType       = $relation->getType();
+                
+                $relationId         = $modelShortName .'-'. $relationType .'-'. $relatedModel;
+                $relationLabelId    = $modelShortName .'-'. $relationType .'-'. $relatedModel .'-label';
                 
                 if ( !preg_match('/notifications/i', $relatedModel) ){
-
-                    // Properties
-                    $graphCells .= 
-                        preg_replace( '/parent_id/',    $modelShortName,
-                        preg_replace( '/cell_id/',      $cellId,
-                        preg_replace( '/cell_name/',    $cellName,
-                        self::MODEL_CELL 
-                    ))) . PHP_EOL;
-                
-                    // Relations
+                    $relation = true;
                     switch( $relationType ){
                         case 'HasOne':
                         case 'MorphMany':
-                            $sourceId = $cellId;
-                            $targetId = ucfirst($relatedModel) .'-'. $relatedKey;
-                            //$originConstraint = 'west';
-                            //$destinationConstraint = 'east';
+                            $sourceId = $modelShortName .'-'. $relationLocalKey;
+                            $targetId = ucfirst($relatedModel) .'-'. $relationForeignKey;
+                            $sourceConstraint = 'west';
+                            $targetConstraint = 'east';
                             break;
                         case 'BelongsTo':
                         case 'BelongsToMany':
-                            $sourceId = ucfirst($relatedModel) .'-'. $relatedKey;
-                            $targetId = $cellId;
-                            //$originConstraint = 'east';
-                            //$destinationConstraint = 'west';
+                            $sourceId = ucfirst($relatedModel) .'-'. $relationForeignKey;
+                            $targetId = $modelShortName .'-'. $relationLocalKey;
+                            $sourceConstraint = 'east';
+                            $targetConstraint = 'west';
                             break;
                         default:
-                            $sourceId = $targetId = 'User';
+                            $relation = false;
+                            info('WARNING: Default switch case used.');
                             break;
                     }
 
-                    /*  Looks like constraints are not needed  */ 
-                    //preg_replace( '/origin_constraint/', $originConstraint,
-                    //preg_replace( '/destination_constraint/', $destinationConstraint,
-                    $graphRelations .=
-                        preg_replace( '/relation_id/', $relationId,
-                        preg_replace( '/source_id/', $sourceId,
-                        preg_replace( '/target_id/', $targetId,
-                        self::MODEL_RELATION
-                    ))) . PHP_EOL;
-
-                    $graphLabels .=
-                        preg_replace( '/relation_label_id/', $relationName,
-                        preg_replace( '/label_value/', $relationType,
-                        preg_replace( '/parent_id/', $relationId,
-                        self::MODEL_RELATION_LABEL
-                    ))) . PHP_EOL;
+                    if ($relation){
+                        
+                        // Relation Text
+                        $graphRelations .=
+                            preg_replace( '/relation_id/', $relationId,
+                            preg_replace( '/source_id/', $sourceId,
+                            preg_replace( '/target_id/', $targetId,
+                            preg_replace( '/source_constraint/', $sourceConstraint,
+                            preg_replace( '/target_constraint/', $targetConstraint,
+                            self::MODEL_RELATION
+                        ))))) . PHP_EOL;
+                        
+                        // Relation Label Text
+                        $graphLabels .=
+                            preg_replace( '/relation_label_id/', $relationLabelId,
+                            preg_replace( '/label_value/', $relationType,
+                            preg_replace( '/parent_id/', $relationId,
+                            preg_replace( '/source_constraint/', $sourceConstraint,
+                            preg_replace( '/target_constraint/', $targetConstraint,
+                            self::MODEL_RELATION_LABEL
+                        ))))) . PHP_EOL;
+                    }
                 }
             }
             //Next Model
             $this->getOutput()->progressAdvance();
         }
 
-        // Assemble final graph
-        $graph = $graphHead . $graphModels . $graphCells . $graphRelations . $graphLabels . $graphFooter;
+        
         $this->getOutput()->progressFinish();
+
+        // Assemble final graph
+        $graph = $graphHead . $graphModels . $graphCells . $graphForeignKeys . $graphForeignKeysLabels . $graphRelations . $graphLabels . $graphFooter;
+        
         $this->info('Done.');
 
-        // TODO - Export file instead of output
-        $this->info($graph);
+        // Export Modelmap
+        //$this->info($graph);
+        //$this->export($praph);
+        Storage::disk('local')->put('modelmap.xml', $graph);
 
-
-
-        /*
-        $bar = $this->output->createProgressBar($models->count());
-
-        $models->transform(function ($model) use ($bar) {
-            $bar->advance();
-            return new GraphModel(
-                $model,
-                (new ReflectionClass($model))->getShortName(),
-                $this->relationFinder->getModelRelations($model)
-            );
-        });
-
-        $graph = $this->graphBuilder->buildGraph($models);
-
-        if ($this->option('format') === self::FORMAT_TEXT) {
-            $this->info($graph->__toString());
-            return;
-        }
-
-        $graph->export($this->option('format'), $this->getOutputFileName());
-
-        $this->info(PHP_EOL);
-        $this->info('Wrote diagram to ' . $this->getOutputFileName());
-        */
     }
 
     protected function getOutputFileName(): string
