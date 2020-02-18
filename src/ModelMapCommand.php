@@ -220,8 +220,8 @@ class ModelMapCommand extends Command
 
             $graphColumn++;
             
-            $columnsPerRow = max((int)self::MODEL_ROW_COLUMNS, sqrt($tablesCount) );
-            
+            $columnsPerRow = max((int)self::MODEL_ROW_COLUMNS, floor(sqrt($tablesCount)) );
+
             if ( $graphColumn%(int)$columnsPerRow == 0){
                 $graphRow++;
                 $graphColumn = 0;
