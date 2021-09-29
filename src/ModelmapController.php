@@ -2,7 +2,7 @@
 
 namespace Luria\Modelmap;
 
-use app\Http\Controllers\Controller;
+use framework\Http\Controllers\Controller;
 use Carbon\Carbon;
 
 class ModelmapController extends Controller
