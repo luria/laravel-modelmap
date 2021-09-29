@@ -15,7 +15,7 @@
     "license": "MIT",
     "minimum-stability": "dev",
     "require": {
-        "php": "^7.1",
+        "php": ">=7.1",
         "doctrine/dbal": "~2.3"
     },
     "autoload": {
